@@ -158,6 +158,12 @@ class Server extends EventEmitter
             $request->emit('data', array($data));
         });
 
+        $that = $this;
+        $stream->on('error', function ($error) use ($that, $conn) {
+            $that->emit('error', array($error));
+            $that->writeError($conn, 400);
+        });
+
         $this->emit('request', array($request, $response));
     }
 

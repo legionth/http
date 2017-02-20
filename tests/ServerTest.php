@@ -530,6 +530,158 @@ class ServerTest extends TestCase
         $this->connection->emit('data', array($data));
     }
 
+    public function testInvalidChunkHeaderResultsInErrorResponse()
+    {
+        $error = null;
+        $server = new Server($this->socket);
+        $server->on('request', $this->expectCallableOnce());
+        $server->on('error', function ($message) use (&$error) {
+            $error = $message;
+        });
+
+        $buffer = '';
+        $this->connection
+            ->expects($this->any())
+            ->method('write')
+            ->will(
+                $this->returnCallback(
+                    function ($data) use (&$buffer) {
+                        $buffer .= $data;
+                    }
+                )
+            );
+
+        $this->socket->emit('connection', array($this->connection));
+
+        $data = "GET / HTTP/1.1\r\n";
+        $data .= "Host: example.com:80\r\n";
+        $data .= "Connection: close\r\n";
+        $data .= "Transfer-Encoding: chunked\r\n";
+        $data .= "\r\n";
+        $data .= "hello\r\hello\r\n";
+
+        $this->connection->emit('data', array($data));
+
+        $this->assertInstanceOf('Exception', $error);
+
+        $this->assertContains("HTTP/1.1 400 Bad Request\r\n", $buffer);
+        $this->assertContains("\r\n\r\nError 400: Bad Request", $buffer);
+    }
+
+    public function testTooLongChunkHeaderResultsInErrorResponse()
+    {
+        $error = null;
+        $server = new Server($this->socket);
+        $server->on('request', $this->expectCallableOnce());
+        $server->on('error', function ($message) use (&$error) {
+            $error = $message;
+        });
+
+        $buffer = '';
+        $this->connection
+            ->expects($this->any())
+            ->method('write')
+            ->will(
+                $this->returnCallback(
+                    function ($data) use (&$buffer) {
+                        $buffer .= $data;
+                    }
+                )
+            );
+
+        $this->socket->emit('connection', array($this->connection));
+
+        $data = "GET / HTTP/1.1\r\n";
+        $data .= "Host: example.com:80\r\n";
+        $data .= "Connection: close\r\n";
+        $data .= "Transfer-Encoding: chunked\r\n";
+        $data .= "\r\n";
+        for ($i = 0; $i < 1025; $i++) {
+            $data .= 'a';
+        }
+
+        $this->connection->emit('data', array($data));
+
+        $this->assertInstanceOf('Exception', $error);
+
+        $this->assertContains("HTTP/1.1 400 Bad Request\r\n", $buffer);
+        $this->assertContains("\r\n\r\nError 400: Bad Request", $buffer);
+    }
+
+    public function testTooLongChunkBodyResultsInErrorResponse()
+    {
+        $error = null;
+        $server = new Server($this->socket);
+        $server->on('request', $this->expectCallableOnce());
+        $server->on('error', function ($message) use (&$error) {
+            $error = $message;
+        });
+
+        $buffer = '';
+        $this->connection
+            ->expects($this->any())
+            ->method('write')
+            ->will(
+                $this->returnCallback(
+                    function ($data) use (&$buffer) {
+                        $buffer .= $data;
+                    }
+                )
+            );
+
+        $this->socket->emit('connection', array($this->connection));
+
+        $data = "GET / HTTP/1.1\r\n";
+        $data .= "Host: example.com:80\r\n";
+        $data .= "Connection: close\r\n";
+        $data .= "Transfer-Encoding: chunked\r\n";
+        $data .= "\r\n";
+        $data .= "5\r\nhello world\r\n";
+
+        $this->connection->emit('data', array($data));
+
+        $this->assertInstanceOf('Exception', $error);
+
+        $this->assertContains("HTTP/1.1 400 Bad Request\r\n", $buffer);
+        $this->assertContains("\r\n\r\nError 400: Bad Request", $buffer);
+    }
+
+    public function testUnexpectedEndOfConnectionWillResultInErrorMessage()
+    {
+        $error = null;
+        $server = new Server($this->socket);
+        $server->on('request', $this->expectCallableOnce());
+        $server->on('error', function ($message) use (&$error) {
+            $error = $message;
+        });
+
+        $buffer = '';
+        $this->connection
+            ->expects($this->any())
+            ->method('write')
+            ->will(
+                $this->returnCallback(
+                    function ($data) use (&$buffer) {
+                        $buffer .= $data;
+                    }
+                )
+            );
+
+        $this->socket->emit('connection', array($this->connection));
+
+        $data = "GET / HTTP/1.1\r\n";
+        $data .= "Host: example.com:80\r\n";
+        $data .= "Connection: close\r\n";
+        $data .= "Transfer-Encoding: chunked\r\n";
+        $data .= "\r\n";
+        $data .= "5\r\nhello\r\n";
+
+        $this->connection->emit('data', array($data));
+        $this->connection->emit('end');
+
+        $this->assertInstanceOf('Exception', $error);
+    }
+
     private function createGetRequest()
     {
         $data = "GET / HTTP/1.1\r\n";
