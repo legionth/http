@@ -1031,7 +1031,6 @@ class ServerTest extends TestCase
             $request->on('error', function ($ex) use (&$error) {
                 $error = $ex;
             });
-
         });
 
         $this->socket->emit('connection', array($this->connection));
@@ -1106,7 +1105,6 @@ class ServerTest extends TestCase
             $request->on('error', function ($ex) use (&$error) {
                 $error = $ex;
             });
-
         });
 
         $this->socket->emit('connection', array($this->connection));
@@ -1124,6 +1122,62 @@ class ServerTest extends TestCase
         $this->assertInstanceOf('Exception', $error);
     }
 
+    public function testErrorInChunkedDecoderNeverClosesConnection()
+    {
+        $server = new Server($this->socket);
+        $server->on('request', $this->expectCallableOnce());
+
+        $this->connection->expects($this->never())->method('close');
+        $this->connection->expects($this->once())->method('pause');
+
+        $this->socket->emit('connection', array($this->connection));
+
+        $data = "GET / HTTP/1.1\r\n";
+        $data .= "Host: example.com:80\r\n";
+        $data .= "Connection: close\r\n";
+        $data .= "Transfer-Encoding: chunked\r\n";
+        $data .= "\r\n";
+        $data .= "hello\r\nhello\r\n";
+
+        $this->connection->emit('data', array($data));
+    }
+
+    public function testErrorInLengthLimitedStreamNeverClosesConnection()
+    {
+        $server = new Server($this->socket);
+        $server->on('request', $this->expectCallableOnce());
+
+        $this->connection->expects($this->never())->method('close');
+        $this->connection->expects($this->once())->method('pause');
+
+        $this->socket->emit('connection', array($this->connection));
+
+        $data = "GET / HTTP/1.1\r\n";
+        $data .= "Host: example.com:80\r\n";
+        $data .= "Connection: close\r\n";
+        $data .= "Content-Length: 5\r\n";
+        $data .= "\r\n";
+        $data .= "hello";
+
+        $this->connection->emit('data', array($data));
+        $this->connection->emit('end');
+    }
+
+    public function testCloseRequestWillPauseConnection()
+    {
+        $server = new Server($this->socket);
+        $server->on('request', function ($request, $response) {
+            $request->close();
+        });
+
+        $this->connection->expects($this->never())->method('close');
+        $this->connection->expects($this->once())->method('pause');
+
+        $this->socket->emit('connection', array($this->connection));
+
+        $data = $this->createGetRequest();
+        $this->connection->emit('data', array($data));
+    }
 
     private function createGetRequest()
     {
