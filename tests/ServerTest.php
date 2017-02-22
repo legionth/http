@@ -97,7 +97,7 @@ class ServerTest extends TestCase
             $request->pause();
         });
 
-        $this->connection->expects($this->once())->method('pause');
+        $this->connection->expects($this->exactly(2))->method('pause');
         $this->socket->emit('connection', array($this->connection));
 
         $data = $this->createGetRequest();
@@ -1176,6 +1176,31 @@ class ServerTest extends TestCase
         $this->socket->emit('connection', array($this->connection));
 
         $data = $this->createGetRequest();
+        $this->connection->emit('data', array($data));
+    }
+
+    public function testEndEventWillBeEmittedOnSimpleRequest()
+    {
+        $dataEvent = $this->expectCallableNever();
+        $closeEvent = $this->expectCallableOnce();
+        $endEvent = $this->expectCallableOnce();
+        $errorEvent = $this->expectCallableNever();
+
+        $server = new Server($this->socket);
+        $server->on('request', function ($request, $response) use ($dataEvent, $closeEvent, $endEvent, $errorEvent){
+            $request->on('data', $dataEvent);
+            $request->on('close', $closeEvent);
+            $request->on('end', $endEvent);
+            $request->on('error', $errorEvent);
+        });
+
+        $this->connection->expects($this->once())->method('pause');
+        $this->connection->expects($this->never())->method('close');
+
+        $this->socket->emit('connection', array($this->connection));
+
+        $data = $this->createGetRequest();
+
         $this->connection->emit('data', array($data));
     }
 
