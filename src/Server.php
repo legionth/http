@@ -162,6 +162,10 @@ class Server extends EventEmitter
 
         $request = new Request($request, $stream);
 
+        $stream->on('error', function ($error) use ($request) {
+            $request->emit('error', array($error));
+        });
+
         // attach remote ip to the request as metadata
         $request->remoteAddress = trim(
             parse_url('tcp://' . $conn->getRemoteAddress(), PHP_URL_HOST),
