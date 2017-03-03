@@ -911,8 +911,6 @@ class ServerTest extends TestCase
         $data .= "0\r\n\r\n";
 
         $this->connection->emit('data', array($data));
-        $this->assertEquals('4', $requestValidation->getHeaderLine('Content-Length'));
-        $this->assertEquals('chunked', $requestValidation->getHeaderLine('Transfer-Encoding'));
     }
 
     public function testInvalidContentLengthWillBeIgnoreddIfTransferEncodingIsSet()
@@ -938,6 +936,7 @@ class ServerTest extends TestCase
         $data = "GET / HTTP/1.1\r\n";
         $data .= "Host: example.com:80\r\n";
         $data .= "Connection: close\r\n";
+        // this is valid behavior according to: https://www.ietf.org/rfc/rfc2616.txt chapter 4.4
         $data .= "Content-Length: hello world\r\n";
         $data .= "Transfer-Encoding: chunked\r\n";
         $data .= "\r\n";
@@ -948,10 +947,6 @@ class ServerTest extends TestCase
         $data .= "0\r\n\r\n";
 
         $this->connection->emit('data', array($data));
-
-        // this is valid behavior according to: https://www.ietf.org/rfc/rfc2616.txt chapter 4.4
-        $this->assertEquals('hello world', $requestValidation->getHeaderLine('Content-Length'));
-        $this->assertEquals('chunked', $requestValidation->getHeaderLine('Transfer-Encoding'));
     }
 
     public function testNonIntegerContentLengthValueWillLeadToError()
@@ -1228,6 +1223,80 @@ class ServerTest extends TestCase
 
         $this->connection->emit('data', array($data));
     }
+
+    public function testTransferEncodingHeaderChunkedWillBeRemovedForRequestEvent()
+    {
+        $server = new Server($this->socket);
+
+        $requestValidation = null;
+        $server->on('request', function (Request $request, Response $response) use (&$requestValidation) {
+            $requestValidation = $request;
+        });
+
+        $this->socket->emit('connection', array($this->connection));
+
+        $data = "GET / HTTP/1.1\r\n";
+        $data .= "Host: example.com:80\r\n";
+        $data .= "Connection: close\r\n";
+        $data .= "Transfer-Encoding: chunked\r\n";
+        $data .= "\r\n";
+        $data .= "5\r\nhello\r\n";
+        $data .= "0\r\n\r\n";
+
+        $this->connection->emit('data', array($data));
+
+        $this->assertFalse($requestValidation->hasHeader('Transfer-Encoding'));
+    }
+
+    public function testContentLengthWillBeRemovedForRequestEvent()
+    {
+        $requestValidation = null;
+        $server = new Server($this->socket);
+
+        $server->on('request', function (Request $request, Response $response) use (&$requestValidation) {
+            $requestValidation = $request;
+        });
+
+        $this->socket->emit('connection', array($this->connection));
+
+        $data = "GET / HTTP/1.1\r\n";
+        $data .= "Host: example.com:80\r\n";
+        $data .= "Connection: close\r\n";
+        $data .= "Content-Length: 5\r\n";
+        $data .= "\r\n";
+        $data .= "hello";
+
+        $this->connection->emit('data', array($data));
+
+        $this->assertFalse($requestValidation->hasHeader('Content-Length'));
+    }
+
+    public function testContentLengtAndTransferEncodingWillBeRemoved()
+    {
+        $requestValidation = null;
+        $server = new Server($this->socket);
+
+        $server->on('request', function (Request $request, Response $response) use (&$requestValidation) {
+            $requestValidation = $request;
+        });
+
+        $this->socket->emit('connection', array($this->connection));
+
+        $data = "GET / HTTP/1.1\r\n";
+        $data .= "Host: example.com:80\r\n";
+        $data .= "Connection: close\r\n";
+        $data .= "Transfer-Encoding: chunked\r\n";
+        $data .= "Content-Length: 5\r\n";
+        $data .= "\r\n";
+        $data .= "5\r\nhello\r\n";
+        $data .= "0\r\n\r\n";
+
+        $this->connection->emit('data', array($data));
+
+        $this->assertFalse($requestValidation->hasHeader('Content-Length'));
+        $this->assertFalse($requestValidation->hasHeader('Transfer-Encoding'));
+    }
+    
 
     private function createGetRequest()
     {
