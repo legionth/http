@@ -1296,7 +1296,69 @@ class ServerTest extends TestCase
         $this->assertFalse($requestValidation->hasHeader('Content-Length'));
         $this->assertFalse($requestValidation->hasHeader('Transfer-Encoding'));
     }
-    
+
+    public function testResponseWillBeChunkDecodedByDefault()
+    {
+        $server = new Server($this->socket);
+
+        $server->on('request', function (Request $request, Response $response) {
+            $response->writeHead();
+            $response->write('hello');
+        });
+
+        $this->connection
+            ->expects($this->exactly(2))
+            ->method('write')
+            ->withConsecutive(
+                array($this->anything()),
+                array("5\r\nhello\r\n")
+            );
+
+        $this->socket->emit('connection', array($this->connection));
+
+        $data = $this->createGetRequest();
+
+        $this->connection->emit('data', array($data));
+    }
+
+    public function testContentLengthWillBeRemovedForResponseStream()
+    {
+        $server = new Server($this->socket);
+
+        $server->on('request', function (Request $request, Response $response) {
+            $response->writeHead(
+                200,
+                array(
+                    'Content-Length' => 4,
+                    'Transfer-Encoding' => 'chunked'
+                )
+            );
+
+            $response->write('hello');
+        });
+
+        $buffer = '';
+        $this->connection
+            ->expects($this->exactly(2))
+            ->method('write')
+            ->will(
+                $this->returnCallback(
+                    function ($data) use (&$buffer) {
+                        $buffer .= $data;
+                    }
+                )
+            );
+
+        $this->socket->emit('connection', array($this->connection));
+
+        $data = $this->createGetRequest();
+
+        $this->connection->emit('data', array($data));
+
+        $this->assertContains('Transfer-Encoding: chunked', $buffer);
+        $this->assertNotContains('Content-Length', $buffer);
+        $this->assertContains("5\r\nhello\r\n", $buffer);
+    }
 
     private function createGetRequest()
     {

@@ -204,6 +204,16 @@ class Response extends EventEmitter implements WritableStreamInterface
             );
         }
 
+        // transfer-encoding overrides 'content-length'
+        if (isset($lower['content-length']) && isset($lower['transfer-encoding'])) {
+            foreach($headers as $name => $value) {
+                if (strtolower($name) === 'content-length') {
+                    unset($headers[$name]);
+                    unset($lower[strtolower($name)]);
+                }
+            }
+        }
+
         // assign chunked transfer-encoding if no 'content-length' is given for HTTP/1.1 responses
         if (!isset($lower['content-length']) && $this->protocolVersion === '1.1') {
             foreach($headers as $name => $value) {
