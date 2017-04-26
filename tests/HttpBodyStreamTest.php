@@ -12,7 +12,7 @@ class HttpBodyStreamTest extends TestCase
 
     public function setUp()
     {
-        $this->input = new ReadableStream();
+        $this->input = new ThroughStream();
         $this->bodyStream = new HttpBodyStream($this->input, null);
     }
 

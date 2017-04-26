@@ -12,7 +12,7 @@ class LengthLimitedStreamTest extends TestCase
 
     public function setUp()
     {
-        $this->input = new ReadableStream();
+        $this->input = new ThroughStream();
     }
 
     public function testSimpleChunk()
@@ -95,7 +95,7 @@ class LengthLimitedStreamTest extends TestCase
 
     public function testOutputStreamCanCloseInputStream()
     {
-        $input = new ReadableStream();
+        $input = new ThroughStream();
         $input->on('close', $this->expectCallableOnce());
 
         $stream = new LengthLimitedStream($input, 0);

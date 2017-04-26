@@ -414,7 +414,7 @@ only support string.
 
 ```php
 $server = new Server($socket, function (ServerRequestInterface $request) use ($loop) {
-    $stream = new ReadableStream();
+    $stream = new ThroughStream();
 
     $timer = $loop->addPeriodicTimer(0.5, function () use ($stream) {
         $stream->emit('data', array(microtime(true) . PHP_EOL));
@@ -446,7 +446,7 @@ pass this header yourself.
 If you know the length of your stream body, you MAY specify it like this instead:
 
 ```php
-$stream = new ReadableStream()
+$stream = new ThroughStream()
 $server = new Server($socket, function (ServerRequestInterface $request) use ($loop, $stream) {
     return new Response(
         200,
